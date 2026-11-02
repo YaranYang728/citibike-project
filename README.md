@@ -263,7 +263,7 @@ python main.py --time_limit 120 --alpha 1.5 --beta 10
 **Run without online map tiles:**
 
 ```bash
-python main.py --time_limit 120 --no-basemap
+python main.py --time_limit 120 
 ```
 
 A larger beta gives inventory mismatch more weight relative to distance. It does not guarantee more visits in a time-limited run. The old `--sample_pct`, `--num_stations`, and `--trip_data` options do not apply to this prepared-input version.
