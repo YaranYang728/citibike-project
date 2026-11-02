@@ -1,0 +1,28 @@
+{
+  "region": "Midtown",
+  "historical_station_ids": 190,
+  "selected_models": {
+    "P": "poisson",
+    "R": "weekday_mean"
+  },
+  "forecast_dates": [
+    "2026-10-29",
+    "2026-10-30",
+    "2026-11-02",
+    "2026-11-03",
+    "2026-11-04"
+  ],
+  "extra_review_station_ids": [
+    "6233.10",
+    "6297.02",
+    "6297.08",
+    "6306.07",
+    "6345.08",
+    "6382.05",
+    "6551.11"
+  ],
+  "test_is_retrospective": true,
+  "future_status_verified": false,
+  "inventory_parameters_created": false,
+  "optimization_run": false
+}

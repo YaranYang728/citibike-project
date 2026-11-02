@@ -1,0 +1,13 @@
+﻿station_id,boundary_distance_m,coordinate_span_m,extent_crosses_boundary,name,region,lat,lon,near_split,position_uncertain,nearest_street,decision
+5736.09,5.013453911043399,0.0,False,E 14 St & Ave B,Midtown,40.72938685,-73.97772429,True,False,14,Keep primary geography; test north/south reassignment and exclusion
+5779.10,9.218962927046745,0.0,False,E 14 St & 1 Ave,Lower Manhattan,40.73139303364151,-73.98286700248718,True,False,14,Keep primary geography; test north/south reassignment and exclusion
+5779.11,13.14359736128445,0.0,False,Ave A & E 14 St,Lower Manhattan,40.73031071000895,-73.98047178983688,True,False,14,Keep primary geography; test north/south reassignment and exclusion
+5905.12,27.789765105645323,0.0,False,Broadway & E 14 St,Lower Manhattan,40.73454567,-73.99074142,True,False,14,Keep primary geography; test north/south reassignment and exclusion
+5914.08,346.96176947467603,362.4495959332229,False,Greenwich Ave & Charles St,Lower Manhattan,40.73523792852804,-74.00027095796904,False,True,14,Keep region; location needs review; test exclusion
+6157.04,21.434321050678896,0.0,False,10 Ave & W 14 St,Lower Manhattan,40.74198159994023,-74.00831580162048,True,False,14,Keep primary geography; test north/south reassignment and exclusion
+6839.15,5.080832158484233,0.0,False,Central Park S & Grand Army Plaza,Upper Manhattan,40.764555,-73.973473,True,False,59,Keep primary geography; test north/south reassignment and exclusion
+6876.04,17.614518751306452,0.0,False,Central Park S & 6 Ave,Upper Manhattan,40.76590936,-73.97634151,True,False,59,Keep primary geography; test north/south reassignment and exclusion
+6912.01,13.58653922175566,0.0,False,7 Ave & Central Park South,Midtown,40.7667405590595,-73.9790689945221,True,False,59,Keep primary geography; test north/south reassignment and exclusion
+6986.07,12.367306357703727,0.0,False,Columbus Ave & W 59 St,Upper Manhattan,40.76931,-73.98464,True,False,59,Keep primary geography; test north/south reassignment and exclusion
+7023.04,8.58940120976179,0.0,False,W 59 St & 10 Ave,Midtown,40.770513,-73.988038,True,False,59,Keep primary geography; test north/south reassignment and exclusion
+7059.01,12.254420795877616,0.0,False,11 Ave & W 59 St,Midtown,40.77149671054441,-73.99046033620834,True,False,59,Keep primary geography; test north/south reassignment and exclusion

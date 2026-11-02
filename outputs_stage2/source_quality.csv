@@ -1,0 +1,4 @@
+month,csv_parts,raw_rows,missing_ride_id,duplicate_rides,bad_endpoint_time,missing_endpoint_station_id,invalid_endpoint_coordinates,zip_bytes
+202607,5,4993137,0,0,0,18209,18190,974302094
+202608,6,5246236,0,0,0,17637,17603,1024034405
+202609,5,4982855,0,0,0,17493,17471,972151835

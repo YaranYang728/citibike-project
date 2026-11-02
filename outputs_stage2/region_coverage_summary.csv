@@ -1,0 +1,4 @@
+region,station_ids,median_active_days,coordinate_span_over_100m,near_split_30m,after_verified_format_merge
+Lower Manhattan,212,90.0,1,5,197
+Midtown,199,90.0,0,4,190
+Upper Manhattan,307,90.0,0,3,289

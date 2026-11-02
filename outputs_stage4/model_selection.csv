@@ -1,0 +1,3 @@
+flow,selected_model,baseline_validation_MAE,poisson_validation_MAE
+P,poisson,12.543343352192363,12.406698435007435
+R,weekday_mean,15.553983184032688,15.719904610050179

@@ -1,0 +1,13 @@
+{
+  "candidate_count": 166,
+  "pairs_evaluated": 13695,
+  "one_depot_total_km": 259.761,
+  "two_depot_total_km": 191.66299999999998,
+  "two_depot_mean_km": 1.1545963855421686,
+  "two_depot_max_km": 2.675,
+  "reduction_percent": 26.215636681411002,
+  "objective": "unweighted_sum_of_nearest_depot_distances",
+  "distance": "rounded_coordinate_L1_km",
+  "site_feasibility_verified": false,
+  "routing_optimization_run": false
+}

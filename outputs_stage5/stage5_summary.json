@@ -1,0 +1,15 @@
+{
+  "case_date": "2026-10-28",
+  "historical_ids": 190,
+  "metadata_midtown_ids": 190,
+  "union_roster_ids": 195,
+  "data_complete_ids": 169,
+  "no_history_flag_ids": 166,
+  "review_ids": 29,
+  "initial_bikes_in_complete_subset": 2001,
+  "target_bikes_in_complete_subset": 4186,
+  "net_target_gap_in_complete_subset": 2185,
+  "full_region_verified": false,
+  "optimization_run": false,
+  "history_end": "2026-09-29"
+}
