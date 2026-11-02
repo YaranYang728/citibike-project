@@ -244,8 +244,7 @@ $$
 | `--inputs` | `outputs_stage6/model_station_inputs.json` | Station inputs |
 | `--depots` | `outputs_stage7/selected_depots.json` | Depot inputs |
 | `--output` | `outputs_stage8` | Result directory |
-| `--no-basemap` | Off | Draw routes without downloading basemap tiles |
-| `--no-map` | Off | Skip map generation |
+
 
 Two trucks are defined by the depot input file. Costs, capacities, and budgets are **study assumptions**, not verified Citi Bike operating parameters. The penalty applies to both excess and shortage relative to targets.
 
