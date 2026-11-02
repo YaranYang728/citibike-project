@@ -1,93 +1,326 @@
 # Citi Bike Overnight Rebalancing — Midtown Manhattan
 
-A reproducible, fixed-data case for IEOR 4004 Milestone 4. The command-line entry point reads the prepared inputs, solves a MILP with **Gurobi only**, validates the candidate solution, and exports routes and a map. It does not rerun demand prediction or fetch live inventory.
+**IEOR 4004 · Milestone 4 · Python & Gurobi**
 
-## Quick start
+This project prepares station-level morning demand estimates and uses a **Mixed-Integer Linear Programming (MILP)** model to plan overnight bike transfers in Midtown Manhattan. The goal is to move the available bikes closer to their target distribution while controlling travel cost.
 
-Use Python 3.11 or newer and a valid Gurobi license that permits this model size. The bundled pip package alone provides only a size-limited license. Install your academic license locally; do **not** upload `gurobi.lic` to GitHub. Gurobi's standard license search or an existing `GRB_LICENSE_FILE` setting is respected.
+> **Start here:** To solve the prepared case, open **`run_model.ipynb`**. You do not need to repeat demand prediction. To inspect or rerun the research workflow, open **`citibike_static_demand.ipynb`**.
 
-From the extracted project directory:
+| Case detail | Setting |
+| :--- | :--- |
+| Study area | Midtown Manhattan, approximately between 14th and 59th Streets, with street-based boundaries |
+| Model coverage | **166 audited station IDs**; no random station sampling |
+| Initial inventory | **October 28, 2026, midnight**, New York time |
+| Available bikes | **1,978** across the retained stations |
+| Morning demand window | **06:00–10:00**, Monday–Friday, including holidays |
+| Fleet | **2 trucks**, each with capacity **25 bikes** |
+| Distance budget | **25 km per truck** |
+| Default optimization limit | **120 seconds** |
+
+---
+
+## Contents
+
+1. [Setup and quick start](#1-setup-and-quick-start)
+2. [Files and folders](#2-files-and-folders)
+3. [Data and demand prediction](#3-data-and-demand-prediction)
+4. [Target inventory and depots](#4-target-inventory-and-depots)
+5. [Optimization model](#5-optimization-model)
+6. [Parameters and examples](#6-parameters-and-examples)
+7. [Results and validation](#7-results-and-validation)
+8. [Assumptions and troubleshooting](#8-assumptions-and-troubleshooting)
+
+---
+
+## 1. Setup and quick start
+
+### Requirements
+
+- Python **3.11 or newer** and the packages listed in `requirements.txt`.
+- A local Gurobi license that permits the full model size, such as an academic license. Installing `gurobipy` alone does not provide an unrestricted license.
+- Internet access if downloading data or displaying online map tiles.
+
+Download the repository using **Code → Download ZIP**, then extract it. Keep the files and folders together.
+
+### Option A — Run in Jupyter
+
+1. Open **`run_model.ipynb`** from the extracted project directory.
+2. On first use, install dependencies in a notebook cell:
+
+   ```python
+   %pip install -r requirements.txt
+   ```
+
+3. Restart the kernel after installation, then run the notebook cells in order.
+
+The notebook calls `main.py`, reads the saved model inputs, runs Gurobi, checks the result, and displays the route map.
+
+### Option B — Run in a terminal
+
+From the project directory:
 
 ```bash
 python -m pip install -r requirements.txt
-python main.py
+python main.py --time_limit 120
 ```
 
-On macOS, use `python3` if `python` is unavailable. Alternatively, open **run_model.ipynb** in Jupyter to run the same command with your notebook's Python environment. Open **citibike_static_demand.ipynb** to inspect the full English research workflow; its earlier forecasting stages do not need to run before `main.py`.
+On macOS, use `python3` if `python` is unavailable. The time limit applies to **Gurobi optimization**; building the model, preparing its initial solution, and drawing the map take additional time.
 
-The script resolves inputs relative to its own location, so starting it from another working directory is supported:
+**Keep `gurobi.lic` private.** Use Gurobi's standard local license location or an existing `GRB_LICENSE_FILE` setting; do not upload the license to this repository.
+
+---
+
+## 2. Files and folders
+
+### Code and notebooks
+
+| File | Purpose |
+| :--- | :--- |
+| `run_model.ipynb` | Short launcher: run optimization from prepared inputs |
+| `citibike_static_demand.ipynb` | Full research workflow: data preparation, regional comparison, demand prediction, inventories, depots, optimization, and diagnostics |
+| `main.py` | Command-line entry point for the prepared case |
+| `data_preprocessing.py` | Load and validate prepared JSON inputs; this module does **not** clean raw trip records |
+| `optimization_model.py` | Gurobi MILP and construction of an initial feasible solution |
+| `solution_checks.py` | Independent checks of routes, loads, inventories, and objective values |
+| `plot_routes.py` | Draw the returned routes on a map |
+| `requirements.txt` | Python dependencies |
+
+### Data and analysis outputs
+
+| Folder | Contents | Needed to run optimization directly? |
+| :--- | :--- | :---: |
+| `outputs_stage2/` | Data quality, cleaned historical aggregates, station geography, and ID alignment | No |
+| `outputs_stage3/` | Comparison of Lower Manhattan, Midtown, and Upper Manhattan | No |
+| `outputs_stage4/` | Demand forecasts, model comparisons, and evaluation tables | No |
+| `outputs_stage5/` | Midnight inventory audit, station matching, and preliminary parameters | No |
+| `outputs_stage6/` | **Final station inputs and fleet-conserving targets**, plus exclusion and target audits | **Yes: station input JSON** |
+| `outputs_stage7/` | **Selected depots**, candidate comparisons, and location plots | **Yes: depot JSON** |
+| `outputs_stage8/` | New solver results and maps, generated when `main.py` runs | Generated |
+| `outputs_stage9/` | Additional validation and plots from the full notebook | No |
+| `data/` | Geography files, archived inventory responses, and ordered historical event caches | No; needed for corresponding preparation steps |
+
+The direct solver needs these two input files:
+
+```text
+outputs_stage6/model_station_inputs.json
+outputs_stage7/selected_depots.json
+```
+
+**Why save earlier outputs?** Data cleaning and prediction generate trustworthy inputs; saving those results avoids repeating the preparation every time the routing model runs. Stages 2–5 also document where the final inputs came from.
+
+**To rerun the complete research notebook:** retain the corresponding `data/` files as well as the analysis outputs. Stages 2–7 alone do not provide every preparation input. Compatible caches can avoid rereading raw trips. Large official trip ZIPs are excluded from the package and may need to be downloaded when rebuilding caches; the notebook documents these steps. Run the full notebook from top to bottom, rather than treating each stage as independent.
+
+Keep folder names unchanged unless all matching code paths are updated.
+
+---
+
+## 3. Data and demand prediction
+
+| Source | Period / timestamp | Use |
+| :--- | :--- | :--- |
+| [Official Citi Bike trip data](https://citibikenyc.com/system-data) | July–September 2026; analysis uses July 2–September 29 | Regional comparison and station pickup/return prediction |
+| [ctbk.dev historical inventory](https://ctbk.dev/) | October 28, 2026, midnight, New York time | Observed starting inventory and station status checks |
+| Saved GBFS station metadata | Snapshot documented in the data files | Station names, IDs, coordinates, and capacity consistency checks |
+| NYC geography and street centerlines | Sources documented in the notebook | Main-island filtering and street-based region boundaries |
+
+**Demand means completed morning pickup and return events**, counted separately at their respective station and event time. It is measured in **events per station per weekday morning peak**. These records do not reveal every unsuccessful attempt to rent or return a bike.
+
+The prediction step compares two simple methods:
+
+- **Baseline:** the station's historical mean for the same weekday, with documented fallback rules.
+- **Regularized Poisson regression:** station ID, weekday, and a date trend; no deep learning or hyperparameter search.
+
+| Split | Dates | Purpose |
+| :--- | :--- | :--- |
+| Training | July 2–August 31 | Fit models |
+| Validation | September 1–15 | Select each flow's method using MAE |
+| Test | September 16–29 | Evaluate the selected methods without reselecting them |
+
+Preprocessing is fitted within each training set. In the saved Midtown analysis, validation selects **Poisson for pickups** and **station-weekday means for returns**. MAE is average absolute count error, not an accuracy percentage.
+
+The notebook also exports a five-weekday static summary for October 29/30 and November 2/3/4. **The optimization uses the separately prepared October 28 case forecasts**, not that five-date average. Midnight inventory is an observation, not a prediction.
+
+Missing, stale, or ambiguous station records are excluded with recorded reasons. The retained 166 IDs form an audited subset, not a claim to cover every current physical Midtown station.
+
+---
+
+## 4. Target inventory and depots
+
+### From predicted trips to target bike stock
+
+Pickup/return counts are **flows over time**; target inventory is the **number of bikes to place at a station before the peak**. They are different quantities because bikes can be returned and used again.
+
+The current target method:
+
+1. Uses ordered September morning events to represent the sequence of pickups and returns.
+2. Scales pickup and return volumes separately to match the October 28 forecasts on average.
+3. Simulates each possible integer starting stock within a station's capacity.
+4. Allocates the existing fleet across stations to minimize average simulated blocked pickup/return volume.
+
+The targets satisfy:
+
+$$
+0 \leq I_i^* \leq C_i, \qquad I_i^* \in \mathbb{Z},
+\qquad \sum_i I_i^* = \sum_i I_i^0 = 1{,}978.
+$$
+
+| Symbol | Meaning |
+| :--- | :--- |
+| $I_i^0$ | Observed midnight stock of available bikes |
+| $C_i$ | Effective capacity proxy: midnight available bikes plus available docks |
+| $P_i$, $R_i$ | Predicted morning pickups and returns |
+| $I_i^*$ | Target starting inventory under the fixed fleet total |
+| $G_i = I_i^* - I_i^0$ | Net delivery needed to reach the target |
+
+- **$G_i > 0$:** delivery station.
+- **$G_i < 0$:** pickup station.
+- **$G_i = 0$:** already at its target.
+
+The saved case contains **67 surplus, 60 deficit, and 39 balanced IDs**. Surplus and deficit quantities each total **442 bikes**. This is the transfer quantity needed to reach every target exactly, not a promise that the trucks can achieve it.
+
+The method preserves demand forecasts while allocating a limited vehicle stock. It does **not** assume that all customer demand can be served. It replaces the earlier heuristic targets; files in `outputs_stage6/previous_targets/` are retained for comparison and are not loaded by `main.py`.
+
+### Two depot candidates
+
+| Truck | Candidate location | Latitude | Longitude |
+| :--- | :--- | ---: | ---: |
+| `Truck_1` | Near Broadway & W 25 St | 40.742869 | -73.989186 |
+| `Truck_2` | Near W 47 St & 6 Ave | 40.758154 | -73.981957 |
+
+The two sites are selected by comparing all station-coordinate pairs and minimizing the sum of distances to each station's nearest candidate. This is an **unweighted two-median location calculation**, separate from truck routing.
+
+Depots are independent routing nodes with no extra bike supply. Their physical parking and loading feasibility is unverified; they are not jointly optimized with the routes.
+
+---
+
+## 5. Optimization model
+
+Gurobi chooses **which stations to visit, their visit order, and how many bikes to transfer**.
+
+The objective combines travel cost and remaining inventory target mismatch:
+
+$$
+\min \quad
+\alpha \sum_{k}\sum_{i,j} D_{ij}x_{ijk}
++ \beta \sum_i u_i,
+\qquad
+u_i \geq \left|I_i^{\mathrm{final}}-I_i^*\right|.
+$$
+
+Here $x_{ijk}$ indicates whether truck $k$ travels directly from node $i$ to node $j$. Absolute deviations are implemented through linear inequalities. The route model minimizes target mismatch; it does not directly minimize the earlier event-replay loss.
+
+### Core constraints
+
+- Station inventories stay between zero and effective capacity.
+- A truck's simultaneous load never exceeds 25 bikes.
+- Each station is visited at most once across the fleet.
+- Every active route is connected to its truck's own depot.
+- Trucks start and finish empty at the same depot.
+- Each truck stays within its distance budget.
+
+Unvisited stations and unmet targets are allowed and penalized. The model does not require equal truck workloads or a minimum number of station visits. An initial feasible solution helps start Gurobi; it does not fix the final routes.
+
+Distances use the original rounded coordinate approximation:
+
+$$
+D_{ij}=\operatorname{round}\!\left(
+84|\mathrm{lon}_i-\mathrm{lon}_j|
++111|\mathrm{lat}_i-\mathrm{lat}_j|,\,3\right)\ \mathrm{km}.
+$$
+
+**Map lines represent visiting order, not actual street navigation.** This version does not enforce road-network or one-way-street rules.
+
+---
+
+## 6. Parameters and examples
+
+| Option | Default | Meaning |
+| :--- | :--- | :--- |
+| `--truck_capacity`, `-Q` | `25` | Maximum bikes carried simultaneously per truck |
+| `--max_dist`, `-w` | `25.0` | Distance budget per truck, km |
+| `--alpha` | `1.5` | Assumed travel cost per km |
+| `--beta` | `5.0` | Assumed penalty per bike of absolute target mismatch |
+| `--time_limit` | `120` | Gurobi optimization limit, seconds |
+| `--inputs` | `outputs_stage6/model_station_inputs.json` | Station inputs |
+| `--depots` | `outputs_stage7/selected_depots.json` | Depot inputs |
+| `--output` | `outputs_stage8` | Result directory |
+| `--no-basemap` | Off | Draw routes without downloading basemap tiles |
+| `--no-map` | Off | Skip map generation |
+
+Two trucks are defined by the depot input file. Costs, capacities, and budgets are **study assumptions**, not verified Citi Bike operating parameters. The penalty applies to both excess and shortage relative to targets.
+
+**Run for two minutes:**
 
 ```bash
-python /path/to/project/main.py
+python main.py --time_limit 120
 ```
 
-Default parameters: two trucks, capacity 25 bikes each, distance budget 25 km per truck, alpha = 1.5 per km, beta = 5 per bike of **absolute inventory target mismatch**, and Gurobi optimization time limit 120 seconds. Building the model and constructing/validating its warm start take additional time. These operating parameters are scenario assumptions, not verified Citi Bike practice.
+**Change the travel/mismatch trade-off:**
 
 ```bash
-python main.py --time_limit 600
-python main.py --no-basemap
-python main.py --no-map
+python main.py --time_limit 120 --alpha 1.5 --beta 10
 ```
 
-`--no-basemap` keeps the route drawing without online map tiles. `--no-map` skips map generation. Other options: `--inputs`, `--depots`, `--output`, `--truck_capacity`, `--max_dist`, `--alpha`, `--beta`. Old random-sampling and live-trip CLI options have been removed deliberately.
+**Run without online map tiles:**
 
-## Fixed input case
+```bash
+python main.py --time_limit 120 --no-basemap
+```
 
-- Area: all **166 retained historical station IDs** in the audited Midtown subset. This is not a 12-station sample and is not a claim that all current physical Midtown stations are covered.
-- Initial inventory: **2026-10-28 midnight, America/New_York**; 1,978 available bikes across the retained stations.
-- Capacity proxy: midnight available bikes plus available docks. This can differ from physical dock capacity.
-- Demand window: **06:00–10:00 New York time, Monday–Friday, including holidays**. Pickups and returns are counted separately by endpoint time. Completed trips approximate observed demand; unsuccessful attempts are not observed.
-- Historical model data: July–September 2026 official Citi Bike trips; source URLs and cache metadata are retained in the data folders/notebook. Training: July 2–August 31; validation: September 1–15; test: September 16–29. Validation MAE selects Poisson for departures and station-weekday means for returns; test results do not reselect models.
-- The full workflow contains a five-date static forecast summary (October 29/30 and November 2/3/4). The optimization inputs use the separately prepared **October 28 case forecasts**, not that five-date average.
-- Missing, stale, or ambiguous inventory/ID records are excluded with an audit trail. Never replace missing observations or genuine zeros with random demand.
+A larger beta gives inventory mismatch more weight relative to distance. It does not guarantee more visits in a time-limited run. The old `--sample_pct`, `--num_stations`, and `--trip_data` options do not apply to this prepared-input version.
 
-### Target inventory
+---
 
-Current inputs use `fixed_fleet_scaled_historical_event_replay_v1`, replacing the old inventory-plus-net-flow formula. September weekday morning event sequences are scaled separately so their average pickup/return totals match the October 28 case forecasts. Capacity-limited replay evaluates every integer starting inventory at each station. Dynamic programming selects a combination minimizing average simulated blocked pickup/return volume, subject to:
+## 7. Results and validation
 
-- `0 <= I_star[i] <= C[i]`, integer;
-- `sum(I_star) = sum(I0) = 1978`;
-- `G[i] = I_star[i] - I0[i]`, hence `sum(G) = 0`.
+After a successful run, `main.py` writes the following into `outputs_stage8/`:
 
-There are 67 surplus, 60 deficit and 39 balanced station IDs; surplus and deficit quantities are both 442 bikes. That is the amount needed to reach all targets exactly, **not** a promised routed quantity. The replay is a fluid approximation calibrated on historical sequences, not an independent service evaluation or a forecast of actual failed orders. Compact event data and provenance are in `data/target_inventory/`; target summaries and comparison tables are in `outputs_stage6/`. `outputs_stage6/previous_targets/` preserves the superseded targets for traceability and is never loaded by `main.py`.
+| File | Contents |
+| :--- | :--- |
+| `solution.json` | Solver status, objective, relative gap, routes, station results, and validation |
+| `station_results.csv` | Before/after inventory, targets, and transfers |
+| `route_stops.csv` | Ordered stops, net deliveries, and truck loads |
+| `routes.png`, `routes.pdf` | Route maps, unless map generation is disabled |
+| `gurobi.log` | Solver progress log |
+| `rebalancing.mps` | Exported optimization model |
+| `warm_start_audit.json` | Checks of the initial solution provided to Gurobi |
 
-### Depots
+Independent checks reconstruct route connectivity, single visits, vehicle loads, final inventories, fleet conservation, distances, and objective values.
 
-`outputs_stage7/selected_depots.json` contains two station-coordinate depot candidates, chosen by exhaustive unweighted two-median comparison over the retained stations. This minimizes the sum of distances to each station's nearest candidate; it does **not** jointly optimize depot locations with truck routes. Candidate depot sites are independent nodes without bike stock, even where colocated with a station. Physical parking/access feasibility is unverified.
+### How to interpret the result
 
-## MILP and outputs
+- **Target mismatch:** total absolute difference between final and target inventory, in bikes. It is not a count of lost trips.
+- **Relative MIP gap:** uncertainty about optimality of the objective, not a shortage of physical bikes or prediction error. In `solution.json`, a gap of `0.60` means **60%**.
+- **Time limit reached with a feasible incumbent:** report a **candidate solution**, not a proven optimum.
+- **No feasible incumbent:** the program raises an error; it does not substitute an old route.
 
-The objective is `alpha * total_distance + beta * sum_i |final_inventory[i] - target[i]|`. The route stage minimizes target mismatch, not the event-replay loss directly.
+Compare final mismatch with no rebalancing, then examine distance, transferred bikes, stop counts, and feasibility. Visiting every input station is not required.
 
-Trucks leave and return empty to their own depot. Each station may be visited at most once across the fleet. Station inventory and vehicle loads obey capacities. Flow continuity and MTZ order constraints enforce connected depot tours. Per-truck distance budgets apply. The model can leave stations unvisited and targets unmet; it does not enforce balanced workloads or a minimum number of visits. A multi-stop feasible warm start initializes Gurobi without fixing routes or transfers.
+The release was checked for syntax, real-input consistency, and small synthetic Gurobi cases with independent validation. Those software tests are not study results. **Full-case results must come from an actual run with a suitable local license.**
 
-Distances are rounded coordinate-based Manhattan approximations: `84*abs(delta_lon) + 111*abs(delta_lat)` km. Map lines show visit order; they are not street-network routes. Overnight customer rides, one-way roads, traffic, travel/service time and an explicit 06:00 completion constraint are omitted.
+---
 
-`outputs_stage8/` is generated locally:
+## 8. Assumptions and troubleshooting
 
-- `solution.json`: actual Gurobi status, gap, objective, routes, station results and validation;
-- `station_results.csv`, `route_stops.csv`;
-- `routes.png`, `routes.pdf` (unless `--no-map`);
-- `gurobi.log`, `rebalancing.mps`, `warm_start_audit.json`.
+### Interpretation limits
 
-A time-limit result with an incumbent is a **candidate feasible solution**, not proven optimal. No feasible incumbent causes an error; old results are not used as a fallback. Independent post-solve checks reconstruct truck loads, station inventories, return-to-depot routes, single visits, distances, fleet conservation and objective values. Do not interpret absolute target mismatch as lost customer trips.
+- Overnight customer rides are ignored.
+- Effective capacity is a snapshot proxy, not necessarily physical dock capacity.
+- Historical completed rides approximate demand; unobserved failed attempts are missing.
+- Historical event replay is a fluid approximation, not an independent service evaluation.
+- Late-October forecast accuracy is not established by September test performance.
+- Travel and loading times, traffic, one-way streets, and explicit completion by 06:00 are not modeled.
+- Fixed-fleet targets and separately selected depots do not guarantee that all targets can be reached within routing constraints.
 
-No new full-case Gurobi route result is bundled. Run locally with your license to produce it. The solver limit starts at optimization; warm-start construction and the large model build can take additional time.
+### Common problems
 
-## Files and reproducibility
+| Problem | What to do |
+| :--- | :--- |
+| Missing `model_station_inputs.json` or `selected_depots.json` | Confirm both Stage 6/7 files exist at the paths above and the full project was extracted |
+| Notebook looks in the wrong directory | Open Jupyter in the project directory; run `print(Path.cwd())` after importing `Path` to check |
+| `ModuleNotFoundError` | Install `requirements.txt` in the active notebook kernel, then restart it |
+| Model too large for the license | Activate a full academic or other suitable Gurobi license locally |
+| Map tiles cannot load | Run with `--no-basemap` to retain the route drawing |
+| Missing inputs while rerunning early notebook stages | Add the corresponding `data/` files from the English project package, or follow the notebook's rebuilding instructions |
 
-- `main.py`: fixed-input CLI entry point.
-- `data_preprocessing.py`: JSON loading and validation only.
-- `optimization_model.py`: Gurobi MILP and warm start, synchronized with the notebook implementation.
-- `solution_checks.py`: independent checks on the exported solution.
-- `plot_routes.py`: map of the actual returned Gurobi routes.
-- `run_model.ipynb`: short Jupyter launcher.
-- `citibike_static_demand.ipynb`: complete English research workflow and cached earlier results.
-- `outputs_stage2` through `outputs_stage7`: historical analysis, forecasts, data quality audits and prepared inputs.
-- `data`: compact geography, inventory metadata and historical event caches. Large raw trip ZIPs are excluded; rebuilding earlier stages may require downloading them as documented in the notebook. The direct model run requires only the two input JSONs and the Python modules.
-
-Milestone 4 still requires the team's final algebraic formulation, a 3–5 page report, incorporation of TA feedback, discussion of sanity checks and limitations, and an accessible link to code/data.
-
-## Validation performed for this release
-
-All Python modules and notebook code cells passed syntax checks. The bundled real case passed input checks (166 IDs, initial and target totals both 1,978). A separate **synthetic four-station software test**, not study data, was solved with Gurobi to optimality and passed the independent route/load/inventory checks; deliberately corrupted load output was rejected. Map export without online tiles was checked. The full 166-station optimization was not solved here because this environment only has a restricted Gurobi license. No test routes are included as project results.
+For Milestone 4, accompany the code with the final algebraic formulation, a **3–5 page report**, parameter sources, actual solver results, sanity checks, limitations, and an accessible repository link.
