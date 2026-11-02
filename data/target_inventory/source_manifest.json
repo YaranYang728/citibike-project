@@ -1,0 +1,13 @@
+{
+  "source": "https://tripdata.s3.amazonaws.com/202609-citibike-tripdata.zip",
+  "source_zip_bytes": 972151835,
+  "rows_read": 4982855,
+  "duplicate_ride_ids": 0,
+  "events": 407789,
+  "observed_station_days": 3389,
+  "start": "2026-09-01",
+  "end": "2026-09-29",
+  "window": "06:00-10:00 America/New_York; Monday-Friday including holidays",
+  "equal_timestamp_rule": "returns before pickups (arbitrary tie convention)",
+  "event_cache_sha256": "871c5360a76c5d9cd06d75184140797c2bddbd8cc46d20321c619c6d61acf1b1"
+}
