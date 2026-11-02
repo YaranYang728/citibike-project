@@ -28,7 +28,6 @@ This project prepares station-level morning demand estimates and uses a **Mixed-
 5. [Optimization model](#5-optimization-model)
 6. [Parameters and examples](#6-parameters-and-examples)
 7. [Results and validation](#7-results-and-validation)
-8. [Assumptions and troubleshooting](#8-assumptions-and-troubleshooting)
 
 ---
 
@@ -199,13 +198,15 @@ Gurobi chooses **which stations to visit, their visit order, and how many bikes 
 
 The objective combines travel cost and remaining inventory target mismatch:
 
-$$
-\min \quad
-\alpha \sum_{k}\sum_{i,j} D_{ij}x_{ijk}
-+ \beta \sum_i u_i,
-\qquad
-u_i \geq \left|I_i^{\mathrm{final}}-I_i^*\right|.
-$$
+```math
+\min \quad \alpha \sum_k \sum_{i,j} D_{ij} x_{ijk} + \beta \sum_i u_i
+```
+
+The inventory mismatch variable satisfies:
+
+```math
+u_i \geq I_i^{\mathrm{final}} - I_i^*, \qquad u_i \geq I_i^* - I_i^{\mathrm{final}}.
+```
 
 Here $x_{ijk}$ indicates whether truck $k$ travels directly from node $i$ to node $j$. Absolute deviations are implemented through linear inequalities. The route model minimizes target mismatch; it does not directly minimize the earlier event-replay loss.
 
@@ -222,11 +223,11 @@ Unvisited stations and unmet targets are allowed and penalized. The model does n
 
 Distances use the original rounded coordinate approximation:
 
-$$
-D_{ij}=\operatorname{round}\!\left(
-84|\mathrm{lon}_i-\mathrm{lon}_j|
-+111|\mathrm{lat}_i-\mathrm{lat}_j|,\,3\right)\ \mathrm{km}.
-$$
+```python
+D_ij = round(84 * abs(lon_i - lon_j) + 111 * abs(lat_i - lat_j), 3)
+```
+
+The result is measured in kilometers.
 
 **Map lines represent visiting order, not actual street navigation.** This version does not enforce road-network or one-way-street rules.
 
@@ -245,7 +246,6 @@ $$
 | `--depots` | `outputs_stage7/selected_depots.json` | Depot inputs |
 | `--output` | `outputs_stage8` | Result directory |
 
-
 Two trucks are defined by the depot input file. Costs, capacities, and budgets are **study assumptions**, not verified Citi Bike operating parameters. The penalty applies to both excess and shortage relative to targets.
 
 **Run for two minutes:**
@@ -259,14 +259,6 @@ python main.py --time_limit 120
 ```bash
 python main.py --time_limit 120 --alpha 1.5 --beta 10
 ```
-
-**Run without online map tiles:**
-
-```bash
-python main.py --time_limit 120 
-```
-
-A larger beta gives inventory mismatch more weight relative to distance. It does not guarantee more visits in a time-limited run. The old `--sample_pct`, `--num_stations`, and `--trip_data` options do not apply to this prepared-input version.
 
 ---
 
@@ -285,41 +277,3 @@ After a successful run, `main.py` writes the following into `outputs_stage8/`:
 | `warm_start_audit.json` | Checks of the initial solution provided to Gurobi |
 
 Independent checks reconstruct route connectivity, single visits, vehicle loads, final inventories, fleet conservation, distances, and objective values.
-
-### How to interpret the result
-
-- **Target mismatch:** total absolute difference between final and target inventory, in bikes. It is not a count of lost trips.
-- **Relative MIP gap:** uncertainty about optimality of the objective, not a shortage of physical bikes or prediction error. In `solution.json`, a gap of `0.60` means **60%**.
-- **Time limit reached with a feasible incumbent:** report a **candidate solution**, not a proven optimum.
-- **No feasible incumbent:** the program raises an error; it does not substitute an old route.
-
-Compare final mismatch with no rebalancing, then examine distance, transferred bikes, stop counts, and feasibility. Visiting every input station is not required.
-
-The release was checked for syntax, real-input consistency, and small synthetic Gurobi cases with independent validation. Those software tests are not study results. **Full-case results must come from an actual run with a suitable local license.**
-
----
-
-## 8. Assumptions and troubleshooting
-
-### Interpretation limits
-
-- Overnight customer rides are ignored.
-- Effective capacity is a snapshot proxy, not necessarily physical dock capacity.
-- Historical completed rides approximate demand; unobserved failed attempts are missing.
-- Historical event replay is a fluid approximation, not an independent service evaluation.
-- Late-October forecast accuracy is not established by September test performance.
-- Travel and loading times, traffic, one-way streets, and explicit completion by 06:00 are not modeled.
-- Fixed-fleet targets and separately selected depots do not guarantee that all targets can be reached within routing constraints.
-
-### Common problems
-
-| Problem | What to do |
-| :--- | :--- |
-| Missing `model_station_inputs.json` or `selected_depots.json` | Confirm both Stage 6/7 files exist at the paths above and the full project was extracted |
-| Notebook looks in the wrong directory | Open Jupyter in the project directory; run `print(Path.cwd())` after importing `Path` to check |
-| `ModuleNotFoundError` | Install `requirements.txt` in the active notebook kernel, then restart it |
-| Model too large for the license | Activate a full academic or other suitable Gurobi license locally |
-| Map tiles cannot load | Run with `--no-basemap` to retain the route drawing |
-| Missing inputs while rerunning early notebook stages | Add the corresponding `data/` files from the English project package, or follow the notebook's rebuilding instructions |
-
-For Milestone 4, accompany the code with the final algebraic formulation, a **3–5 page report**, parameter sources, actual solver results, sanity checks, limitations, and an accessible repository link.
