@@ -1,0 +1,22 @@
+{
+  "case_date": "2026-10-28",
+  "target_method": "fixed_fleet_scaled_historical_event_replay_v1",
+  "stations": 166,
+  "initial_inventory_total": 1978,
+  "old_target_total": 4106,
+  "target_inventory_total": 1978,
+  "net_target_gap": 0,
+  "surplus_stations": 67,
+  "deficit_stations": 60,
+  "balanced_stations": 39,
+  "surplus_bikes": 442,
+  "deficit_bikes": 442,
+  "simulated_mean_loss_initial": 1510.8272164023952,
+  "simulated_mean_loss_old_target": 818.0248757026823,
+  "simulated_mean_loss_new_target": 1305.9539915110042,
+  "historical_sequence_start": "2026-09-01",
+  "historical_sequence_end": "2026-09-29",
+  "event_cache_sha256": "871c5360a76c5d9cd06d75184140797c2bddbd8cc46d20321c619c6d61acf1b1",
+  "independent_service_test": false,
+  "routing_optimization_run": false
+}

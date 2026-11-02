@@ -1,0 +1,10 @@
+{
+  "review_roster": 195,
+  "included": 166,
+  "excluded": 29,
+  "initial_bikes": 1978,
+  "target_bikes": 4106,
+  "no_rebalancing_mismatch": 2220,
+  "net_target_gap": 2128,
+  "optimization_run": false
+}
